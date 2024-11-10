@@ -1,0 +1,10 @@
+**/__pycache__/
+.pytest_cache/
+
+test/
+
+requirements-test.txt
+*.md
+
+.dockerignore
+Dockerfile
