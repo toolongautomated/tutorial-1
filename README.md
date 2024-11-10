@@ -84,3 +84,86 @@ Then, run the following:
 ```shell
 pytest test/unit
 ```
+
+## Introducing changes to the source code of the application
+
+The application is versioned using [semantic versioning](https://semver.org/)
+approach: whenever you add/remove/change any file strictly related to the
+application, you should add new entry to the [CHANGELOG](app/CHANGELOG.md) file.
+This can be: source code, requirements, static files that are used by the
+application from within the container, this sort of things.
+
+Below is a standard development you're expected to follow:
+
+1. Create new feature branch from the `main` branch.
+2. Introduce the changes to the application and put new entry in the
+`CHANGELOG`, briefly describing the change.
+3. Open PR to the `main` branch.
+4. Once approved, merge the code.
+5. Checkout the `main` branch locally and pull the changes.
+6. Create a tag with the following command: `git tag [VERSION]`
+7. Push the tag to the remote: `git push --tags`
+
+## Docker image building and pushing
+
+`app` directory contains a `Dockerfile` that encloses the app into a reusable
+unit with requirements installed, networking set up, and all needed files copied
+to ensure smooth execution.
+
+I've also included a carefully crafted `.dockerignore` to ensure that only the
+files that are truly required for the app's execution end up in the image.
+
+### Build the image
+
+Run the following to build the docker image locally:
+
+```shell
+cd app
+docker build -t tutorial-1 .
+```
+
+The image will be called `tutorial-1`. To run it, use the following command:
+
+```shell
+docker run --rm -p 80:80 tutorial-1
+```
+
+Note that it's NOT important from which directory you run it. Docker container
+runs a Flask server inside, exposed to port 80 of the container. To make it
+available outside of the container, we need to forward this port to some port
+outside of the container. That's what the `-p` flag does–it forwards container's
+port number 80 to port 80 of the local machine.
+
+### Push the image
+
+Once built, the image can be pushed to an external registry (a place on the
+Internet where your Docker images are stored). For this tutorial, I've prepared
+a repository on Docker Hub. You can access it
+[here](https://hub.docker.com/r/toolongautomated/tutorial-1).
+
+The repository is public, meaning anyone can freely pull the images from it, so
+feel free to explore it if you are adventurous! Below, I'll be using this
+repository to showcase sample Docker commands. However, please ensure you set up
+your own registry and push the images to it instead of to the mine 🙌🏼
+
+Okay, back to pushing.
+
+First, authenticate to your image registry of choice. In my case it's the Docker
+Hub, so I simply need to run:
+
+```shell
+docker login
+```
+
+Next, let's adjust the tags of the image we've already built before
+(`tutorial-1`):
+
+```shell
+docker tag tutorial-1 toolongautomated/tutorial-1:1.0.0
+```
+
+Then, to push the built image:
+
+```shell
+docker push toolongautomated/tutorial-1:1.0.0
+```
