@@ -115,7 +115,7 @@ files that are truly required for the app's execution end up in the image.
 
 ### Build the image
 
-Run the following to build the docker image locally:
+Run the following to build the Docker image locally:
 
 ```shell
 cd app
@@ -167,3 +167,69 @@ Then, to push the built image:
 ```shell
 docker push toolongautomated/tutorial-1:1.0.0
 ```
+
+## Deployment to Cloud Run (example)
+
+I think that giving you a chance to play with something real (cloud) instead of
+a local playground (your machine) will be invaluable. I’ve analyzed [free
+tier](https://cloud.google.com/free/docs/free-cloud-features) rules of the
+Google Cloud Platform and realized that **Cloud Run** will be a perfect choice
+to play with multi-environment deployment tutorial. It is because for our short
+experiments, **it’ll be free to use**.
+
+**tl;dr:** Cloud Run lets you run your app in containers without worrying about
+servers. It scales up and down as needed and only costs when it’s running. It’s
+great for small services and APIs.
+
+If you’d like this tutorial to be a true hands-on experience, I highly encourage
+you to set up a GCP project and play with it in the rest of this tutorial. I’ve
+prepared a short video on how to create a new project if this is your first time
+doing it: [link](https://youtu.be/pC2dBysvhwI).
+
+### `gcloud` setup
+
+Google provides a dedicated CLI tool to manipulate GCP infrastructure from a
+local machine. It’s called `gcloud` and
+[here](https://cloud.google.com/sdk/docs/install) are the instructions on how to
+install it.
+
+Once installed, you need to authorize gcloud:
+
+```shell
+gcloud auth login
+gcloud auth application-default login
+```
+
+Then, we need to set the GCP project that all gcloud commands will run against:
+
+```shell
+gcloud config set project [YOUR-PROJECT-ID]
+```
+
+Finally, the quota project needs to also be set to this project ID:
+
+```shell
+gcloud auth application-default set-quota-project [YOUR-PROJECT-ID]
+```
+
+### Deploy
+
+`deploy/environments` directory contains subdirectories, each storing a `.env`
+file associated with the deployment environment. Name of the subdirectory
+corresponds to the name of the environment it serves (case-specific!).
+
+To deploy the application:
+1. Build the Docker image and push it to the registry of your choice (GCP's
+    Artifact Registry and Docker Hub are natively supported by Cloud Run).
+2. Prepare the `.env` file for your deployment.
+3. Run the following command:
+    ```shell
+    ./manage deploy [ENVIRONMENT]
+    ```
+    where `[ENVIRONMENT]` should be substituted with the actual name of your
+    environment, e.g. `staging`.
+4. Once done playing with the deployment, remove it to avoid unnecessary cloud costs. To terminate Cloud Run deployment, run:
+    ```shell
+    gcloud run services delete [SERVICE_NAME] \
+        --region [REGION]
+    ```
