@@ -2,10 +2,12 @@
 
 function help() {
     echo "Usage:"
-    echo "  deploy: ./manage.bash deploy [ENVIRONMENT]"
+    echo "  deploy: ./manage deploy [ENVIRONMENT]"
+    echo "  setup-iam: ./manage setup-iam [REPO_OWNER] [REPO_NAME] [PROJECT_ID]"
     echo ""
     echo "Example usage:"
-    echo "  Deploy a service: ./manage.bash deploy staging"
+    echo "  Deploy a service: ./manage deploy staging"
+    echo "  Setup IAM: ./manage setup-iam toolongautomated tutorial-1 toolongautomated"
 }
 
 function load_env() {
@@ -43,7 +45,60 @@ case "$1" in
         --port $PORT \
         --region $REGION \
         --allow-unauthenticated
+    ;;
 
+"setup-iam")
+    if [ -z "$2" ] || [ -z "$3" ] || [ -z "$4" ]; then
+        echo "Error: Missing required arguments"
+        help
+        exit 1
+    fi
+
+    repo_owner="$2"
+    repo_name="$3"
+    project_id="$4"
+
+    # Create a new workload identity pool for GitHub Actions
+    workload_identity_pool_id=$(gcloud iam workload-identity-pools create "github" \
+        --project="$project_id" \
+        --location="global" \
+        --display-name="GitHub Actions Pool" \
+        --format="value(name)")
+
+    # Create a new provider for the GitHub Actions pool.
+    gcloud iam workload-identity-pools providers create-oidc "$repo_name" \
+        --project="$project_id" \
+        --location="global" \
+        --workload-identity-pool="github" \
+        --display-name="GitHub Actions identity provider" \
+        --attribute-mapping="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository,attribute.repository_owner=assertion.repository_owner" \
+        --attribute-condition="assertion.repository_owner == '$repo_owner'" \
+        --issuer-uri="https://token.actions.githubusercontent.com"
+
+    full_provider_name=$(gcloud iam workload-identity-pools providers describe "$repo_name" \
+        --project="$project_id" \
+        --location="global" \
+        --workload-identity-pool="github" \
+        --format="value(name)")
+
+    echo "Full provider name: $full_provider_name"
+
+    roles=(
+        "roles/run.developer"
+        "roles/artifactregistry.reader"
+        "roles/iam.serviceAccountUser"
+    )
+
+    principal="principalSet://iam.googleapis.com/${workload_identity_pool_id}/attribute.repository/${repo_owner}/${repo_name}"
+
+    # Create and configure IAM policies
+    for role in "${roles[@]}"; do
+        gcloud projects add-iam-policy-binding "$project_id" \
+            --member="$principal" \
+            --role="$role"
+    done
+
+    echo "IAM policies created successfully"
     ;;
 "help")
     # Display general help message
