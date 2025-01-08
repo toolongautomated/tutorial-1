@@ -6,6 +6,27 @@
 > in the series if you're interested:
 [🔗 link](https://toolongautomated.com/posts/2024/one-branch-to-rule-them-all-1).
 
+- [Tutorial #1: one branch to rule them all 🌳](#tutorial-1-one-branch-to-rule-them-all-)
+  - [Introduction](#introduction)
+  - [Prerequisites](#prerequisites)
+  - [How to run locally](#how-to-run-locally)
+    - [Server](#server)
+    - [Tests](#tests)
+  - [Introducing changes to the source code of the application](#introducing-changes-to-the-source-code-of-the-application)
+    - [Creating git tags](#creating-git-tags)
+      - [Manually creating git tags](#manually-creating-git-tags)
+      - [Automatically creating git tags](#automatically-creating-git-tags)
+    - [Docker image building and pushing](#docker-image-building-and-pushing)
+      - [Manual Docker image building and pushing](#manual-docker-image-building-and-pushing)
+        - [Build the image](#build-the-image)
+        - [Push the image](#push-the-image)
+      - [Automated Docker image building and pushing](#automated-docker-image-building-and-pushing)
+  - [Deployment to Cloud Run (example)](#deployment-to-cloud-run-example)
+    - [`gcloud` setup](#gcloud-setup)
+    - [Deploy](#deploy)
+
+
+## Introduction
 My goal in this tutorial is to show you how to:
 - develop your code in a no-brainer git flow following permissive trunk-based branching strategy
 - version your application using git tagging and Docker image tagging
@@ -97,14 +118,75 @@ Below is a standard development you're expected to follow:
 
 1. Create new feature branch from the `main` branch.
 2. Introduce the changes to the application and put new entry in the
-`CHANGELOG`, briefly describing the change.
+    `CHANGELOG`, briefly describing the change. **Important**: If you modify any
+    files in `app/src/*.py`, `app/requirements.txt`, `app/Dockerfile`, or
+    `app/.dockerignore`, you MUST update the changelog or the GitHub Actions
+    workflow will fail.
 3. Open PR to the `main` branch.
 4. Once approved, merge the code.
-5. Checkout the `main` branch locally and pull the changes.
-6. Create a tag with the following command: `git tag [VERSION]`
-7. Push the tag to the remote: `git push --tags`
+5. Git tag will be automatically created based on the latest version in
+    `app/CHANGELOG.md` if it differs from the previous version.
+6. If the changelog version has been increased, and the tagging step creates a
+    new tag, Docker image will be automatically built and pushed to the registry
+    of your choice (Docker Hub in this case).
 
-## Docker image building and pushing
+### Creating git tags
+
+By default, git tags are created automatically using the `maybe_tag_and_build`
+GitHub Actions workflow on every push to the `main` branch. However, you can
+also create them manually.
+
+#### Manually creating git tags
+
+To create a git tag manually, run the following command:
+
+```shell
+git checkout main
+git pull
+git tag [TAG_NAME]
+git push --tags
+```
+
+#### Automatically creating git tags
+
+The tag creation is automated through a `maybe_tag_and_build` GitHub Action that
+triggers on pushes to the `main` branch, but only when changes are made to
+critical application files:
+- Python source files in `app/src`
+- Application requirements (`app/requirements.txt`)
+- Container definition files (`app/Dockerfile`, `app/.dockerignore`)
+
+The process expects `app/CHANGELOG.md` to follow a specific format:
+- Each version must be a level-2 header (##)
+- Version numbers must follow semantic versioning (X.Y.Z)
+- Latest version should be at the top of the file
+- Example changelog file:
+
+  ```md
+  # Sample changelog file
+
+  ## 1.0.1
+
+  Changes description...
+
+  ## 1.0.0
+
+  Initial release...
+  ```
+
+When triggered, the action:
+1. Checks out the repository with 2 commits depth to compare changes.
+2. Extracts the latest version from `app/CHANGELOG.md` using pattern matching.
+3. Creates a git tag in format `X.Y.Z` with an annotation "Released version
+    X.Y.Z of the app".
+
+### Docker image building and pushing
+
+Docker image building and pushing is also automated through a
+`maybe_tag_and_build` GitHub Action.  However, you can also build and push the
+image manually if you'd like to.
+
+#### Manual Docker image building and pushing
 
 `app` directory contains a `Dockerfile` that encloses the app into a reusable
 unit with requirements installed, networking set up, and all needed files copied
@@ -113,7 +195,7 @@ to ensure smooth execution.
 I've also included a carefully crafted `.dockerignore` to ensure that only the
 files that are truly required for the app's execution end up in the image.
 
-### Build the image
+##### Build the image
 
 Run the following to build the Docker image locally:
 
@@ -134,7 +216,7 @@ available outside of the container, we need to forward this port to some port
 outside of the container. That's what the `-p` flag does–it forwards container's
 port number 80 to port 80 of the local machine.
 
-### Push the image
+##### Push the image
 
 Once built, the image can be pushed to an external registry (a place on the
 Internet where your Docker images are stored). For this tutorial, I've prepared
@@ -167,6 +249,39 @@ Then, to push the built image:
 ```shell
 docker push toolongautomated/tutorial-1:1.0.0
 ```
+
+#### Automated Docker image building and pushing
+
+The `maybe_tag_and_build` GitHub Actions workflow will automatically build and
+push a Docker image to the Docker Hub registry when a new tag is created. I've
+selected Docker Hub container registry purely for illustrative purposes, you're
+free to choose the one you're comfortable with. The key points you need to
+understand from the automate image building and pushingare:
+
+- If you modify critical files but don't update the changelog, the workflow
+    fails immediately (otherwise it wouldn't know which version to tag)
+- If the changelog version hasn't changed from the previous one, no tag is
+    created and no build happens (there's nothing new to build)
+- If the changelog has a new version but that tag already exists in git, the tag
+    step fails (this is expected and prevents duplicate tags) and no downstream
+    build is triggered
+- Only when a new tag is successfully created (new version in changelog + tag
+    doesn't exist yet), the Docker image is built and pushed with both the
+    version tag and `latest`
+
+For a GitHub Actions workflow to work properly, it needs to have access to the
+Docker Hub registry. To do this, you need to create a personal access token
+(PAT) with the necessary permissions. You can create a PAT
+[here](https://app.docker.com/settings/personal-access-tokens). Ensure that the
+token has the following scopes: `Read & Write`.
+
+Once you create the PAT, you need to add it to the GitHub repository secrets.
+You can do this by going to the repository settings, clicking on "Secrets and
+variables", and then clicking on "New repository secret". I've added two secrets
+for this mini project: `DOCKER_USERNAME` (which corresponds to the username
+of the Docker Hub account) and `DOCKER_TOKEN` (which corresponds to the
+PAT). These secrets are used by the `maybe_tag_and_build` GitHub Actions
+workflow to authenticate to the Docker Hub registry and push the built image.
 
 ## Deployment to Cloud Run (example)
 
