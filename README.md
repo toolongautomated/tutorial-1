@@ -6,6 +6,23 @@
 > in the series if you're interested:
 [🔗 link](https://toolongautomated.com/posts/2024/one-branch-to-rule-them-all-1).
 
+- [Tutorial #1: one branch to rule them all 🌳](#tutorial-1-one-branch-to-rule-them-all-)
+  - [Introduction](#introduction)
+  - [Prerequisites](#prerequisites)
+  - [How to run locally](#how-to-run-locally)
+    - [Server](#server)
+    - [Tests](#tests)
+  - [Introducing changes to the source code of the application](#introducing-changes-to-the-source-code-of-the-application)
+    - [Automated tag creation](#automated-tag-creation)
+  - [Docker image building and pushing](#docker-image-building-and-pushing)
+    - [Build the image](#build-the-image)
+    - [Push the image](#push-the-image)
+  - [Deployment to Cloud Run (example)](#deployment-to-cloud-run-example)
+    - [`gcloud` setup](#gcloud-setup)
+    - [Deploy](#deploy)
+
+
+## Introduction
 My goal in this tutorial is to show you how to:
 - develop your code in a no-brainer git flow following permissive trunk-based branching strategy
 - version your application using git tagging and Docker image tagging
@@ -100,9 +117,36 @@ Below is a standard development you're expected to follow:
 `CHANGELOG`, briefly describing the change.
 3. Open PR to the `main` branch.
 4. Once approved, merge the code.
-5. Checkout the `main` branch locally and pull the changes.
-6. Create a tag with the following command: `git tag [VERSION]`
-7. Push the tag to the remote: `git push --tags`
+5. Git tag will be automatically created based on the latest version in
+    `app/CHANGELOG.md`.
+
+### Automated tag creation
+
+The tag creation is automated through a GitHub Action that triggers on pushes to
+the `main` branch, but only when changes are made to critical application files:
+- Python source files in `app/src`
+- Application requirements (`app/requirements.txt`)
+- Container definition files (`app/Dockerfile`, `app/.dockerignore`)
+
+The process expects `app/CHANGELOG.md` to follow a specific format:
+- Each version must be a level-2 header (##)
+- Version numbers must follow semantic versioning (X.Y.Z)
+- Latest version should be at the top of the file
+- Example:
+
+  ```md
+  ## 1.0.1
+  Changes description...
+
+  ## 1.0.0
+  Initial release...
+  ```
+
+When triggered, the action:
+1. Checks out the repository with 2 commits depth to compare changes
+2. Extracts the latest version from `app/CHANGELOG.md` using pattern matching
+3. Creates a git tag in format `X.Y.Z` with an annotation "Released version
+    X.Y.Z of the app"
 
 ## Docker image building and pushing
 
