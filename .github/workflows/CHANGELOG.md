@@ -4,6 +4,5 @@
 
 ### Added
 
-- Automated git tag creation workflow
-- Automated Docker image build and push workflow
-- Docker Hub integration
+- Automated git tag creation
+- Automated Docker image build and push

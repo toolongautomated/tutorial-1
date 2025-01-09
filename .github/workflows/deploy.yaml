@@ -3,7 +3,7 @@ name: Deploy new version of the application
 on:
   push:
     branches:
-      - basic-automations
+      - main
     paths:
       - 'deploy/environments/**/.env'
 

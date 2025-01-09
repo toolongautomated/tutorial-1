@@ -75,36 +75,35 @@ case "$1" in
         --attribute-condition="assertion.repository_owner == '$repo_owner'" \
         --issuer-uri="https://token.actions.githubusercontent.com"
 
+    # Get the full identity provider name.
     full_provider_name=$(gcloud iam workload-identity-pools providers describe "$repo_name" \
         --project="$project_id" \
         --location="global" \
         --workload-identity-pool="github" \
         --format="value(name)")
 
-    echo "Full provider name: $full_provider_name"
-
-    roles=(
-        "roles/run.developer"
-        "roles/artifactregistry.reader"
-        "roles/iam.serviceAccountUser"
-    )
+    # Create a custom role for the GitHub Actions workflow to use to deploy to Cloud Run.
+    gcloud iam roles create cloud_run_deployer --project="$project_id" \
+        --file=infrastructure/cloud_run_deployer_role.yaml
 
     principal="principalSet://iam.googleapis.com/${workload_identity_pool_id}/attribute.repository/${repo_owner}/${repo_name}"
 
-    # Create and configure IAM policies
-    for role in "${roles[@]}"; do
-        gcloud projects add-iam-policy-binding "$project_id" \
-            --member="$principal" \
-            --role="$role"
-    done
+    # Create and configure IAM policy binding for the custom role.
+    gcloud projects add-iam-policy-binding "$project_id" \
+        --member="$principal" \
+        --role="projects/$project_id/roles/cloud_run_deployer"
 
-    echo "IAM policies created successfully"
+    echo "Full provider name: $full_provider_name. Copy this value to your GitHub Actions workflow (google-github-actions/auth@v2 step)"
+    echo ""
+    echo "IAM resources created successfully!"
     ;;
+
 "help")
     # Display general help message
     help
     exit 0
     ;;
+
 *)
     # Display help for unknown commands
     echo "Error: Unknown command $1"
