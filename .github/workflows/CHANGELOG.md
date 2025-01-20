@@ -4,5 +4,6 @@
 
 ### Added
 
-- Automated git tag creation
-- Automated Docker image build and push
+- git tag creation
+- Docker image build and push
+- Cloud Run deployment
