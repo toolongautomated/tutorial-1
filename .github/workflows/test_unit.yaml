@@ -1,0 +1,45 @@
+name: Unit Tests
+
+on:
+  pull_request:
+    paths:
+      - 'app/src/*.py'
+      - 'app/requirements-test.txt'
+      - 'app/test/unit/*.py'
+    types: [opened, synchronize]
+
+jobs:
+  test:
+    permissions:
+      checks: write
+      pull-requests: write
+
+    runs-on: ubuntu-22.04
+
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}/app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Run unit tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}/app
+        run: |
+          pytest test/unit -v --junitxml=test-results.xml
+
+      - name: Publish Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: app/test-results.xml
+          comment_mode: always
