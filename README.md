@@ -15,8 +15,9 @@ This tutorial will show you how to:
 - build and push Docker images
 - deploy the application to Cloud Run (staging and production environments)
 - configure deployments using `.env` files
-- `🚀 tl; a`: automate tagging, building and pushing Docker images, and
-    deploying the application to Cloud Run.
+- `🚀 tl; a`: automate tagging, building and pushing Docker images,
+    deploying the application to Cloud Run (read more about the available
+    GitHub Actions workflows [here](.github/workflows/README.md))
 
 If you'd like to implement the tutorial step-by-step, several git tags are here,
 marking important milestones. Use `git checkout [TAG]` to explore the code
@@ -70,11 +71,23 @@ cd app
 pip install -r requirements-test.txt
 ```
 
-Then, run the tests:
+Then, run the **unit tests**:
 
 ```shell
-pytest test/unit
+cd app/
+export PYTHONPATH=${PYTHONPATH}:$(pwd)
+pytest test/unit -v
 ```
+
+Or the **integration tests**:
+
+```shell
+cd app/
+pytest test/integration -v
+```
+
+Note that integration tests require the `ENDPOINT_URL` environment variable to
+be set. This should point to the URL of the application running in Cloud Run.
 
 ## Application versioning
 
@@ -95,11 +108,23 @@ To add a new feature, follow these steps:
    1. git tag will be created automatically
    1. Docker image will be built and pushed to the registry of your choice
       (Docker Hub in this tutorial)
-   1. if any `.env` files are changed, the application will be deployed
-      to the corresponding Cloud Run environment
 
 If you'd like to learn how to perform steps from point 6 manually, here you are:
 - [git tagging](https://www.toolongautomated.com/posts/2024/one-branch-to-rule-them-all-2.html#git-tagging)
 - [build and push Docker images](https://www.toolongautomated.com/posts/2024/one-branch-to-rule-them-all-2.html#containerize-the-application)
 - [configure `gcloud` CLI](https://www.toolongautomated.com/posts/2025/one-branch-to-rule-them-all-3.html#configure-gcloud-cli)
 - [deploy to Cloud Run](https://www.toolongautomated.com/posts/2025/one-branch-to-rule-them-all-3.html#deploy-to-cloud-run)
+
+Once the code is merged and the Docker image gets built, you can continue to
+deploy a new version of the application:
+
+1. Create a new branch from the `main` branch.
+1. Update the `.env` file for the environment you'd like to deploy to.
+1. Open a PR to the `main` branch.
+1. `🚀 tl; a`:
+    1. Test environment will be deployed to Cloud Run.
+    1. Integration tests will be executed.
+    1. Results will be reported to the PR.
+1. If the tests pass, it will be possible to merge the PR.
+1. `🚀 tl; a`: once merged into `main`, the affected Cloud Run environment will
+    be updated.

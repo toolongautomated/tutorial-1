@@ -6,6 +6,7 @@ automate:
 - git tags
 - build and push Docker images to Docker Hub
 - deploy application to Cloud Run
+- unit and integration tests
 
 ## git tags
 
@@ -73,7 +74,7 @@ Google Cloud Platform offers a [free
 tier](https://cloud.google.com/free/docs/free-cloud-features). As part of it (as
 of 2025-01-20), you can use Cloud Run for free (to some extent). Cloud Run lets
 you run your app in containers without worrying about servers. It scales up and
-down as needed and only costs when it’s running. It’s great for small services
+down as needed and only costs when it's running. It's great for small services
 and APIs.
 
 The `deploy` GitHub Actions workflow can deploy the application to Cloud Run.
@@ -83,7 +84,7 @@ It will be triggered on every push to the `main` branch, whenever any of the
 If multiple `.env` files are modified, the workflow will deploy the application
 to all affected environments.
 
-If you’d like to try it out, you need to set up a GCP project first. Here's [a
+If you'd like to try it out, you need to set up a GCP project first. Here's [a
 short video](https://youtu.be/pC2dBysvhwI) on how to create a new project if
 this is your first time doing it.
 
@@ -140,3 +141,35 @@ Example:
 Once done playing with the Cloud Run deployment, remember to delete the service.
 Otherwise, you may be charged for running it for too long outside of the free
 tier. Read more about it [here](https://www.toolongautomated.com/posts/2025/one-branch-to-rule-them-all-3.html#deploy-to-cloud-run).
+
+`delete` command can be used to delete the service:
+
+```shell
+./manage delete [ENVIRONMENT] [PREFIX]
+```
+
+Prefix is optional and will be attached to the service name. Example:
+
+```shell
+./manage delete staging test
+```
+
+This will attempt to delete the service `test-[SERVICE NAME]-staging`.
+
+## Unit tests
+
+Whenever a pull request is opened or a new commit is added to it, the
+`test_unit` workflow will be executed. It will run unit tests and publish the
+results to the PR as a comment if any of the application-related files are
+modified.
+
+## Integration tests
+
+The `test_integration` workflow runs integration tests whenever `.env` files are modified in a pull request. For each modified environment:
+
+1. Deploys a test instance to Cloud Run with `test-` prefix.
+2. Runs integration tests against the deployed instance.
+3. Posts test results as a PR comment.
+4. Deletes the test instance.
+
+The workflow requires the same GCP authentication setup as the `deploy` workflow.

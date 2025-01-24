@@ -43,3 +43,4 @@ jobs:
         with:
           files: app/test-results.xml
           comment_mode: always
+          comment_title: "Unit Test Results"

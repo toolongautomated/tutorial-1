@@ -2,11 +2,15 @@
 
 function help() {
     echo "Usage:"
-    echo "  deploy: ./manage deploy [ENVIRONMENT]"
+    echo "  deploy: ./manage deploy [ENVIRONMENT] [PREFIX]"
+    echo "  delete: ./manage delete [ENVIRONMENT] [PREFIX]"
     echo "  setup-iam: ./manage setup-iam [REPO_OWNER] [REPO_NAME] [PROJECT_ID]"
     echo ""
     echo "Example usage:"
     echo "  Deploy a service: ./manage deploy staging"
+    echo "  Deploy a service with a prefix: ./manage deploy staging test"
+    echo "  Delete a service: ./manage delete staging"
+    echo "  Delete a service with a prefix: ./manage delete staging test"
     echo "  Setup IAM: ./manage setup-iam toolongautomated tutorial-1 toolongautomated"
 }
 
@@ -26,25 +30,50 @@ function load_env() {
 # Main script execution starts here
 case "$1" in
 "deploy")
-    # Check if environment parameter is provided
     if [ -z "$2" ]; then
         echo "Error: Environment not specified"
         help_deploy
         exit 1
     fi
 
-    environment="$2"
+    # Prefix for the service name; useful for integration testing
+    PREFIX=""
+    if [ -n "$3" ]; then
+        PREFIX="$3-"
+    fi
 
-    # Load environment-specific variables
+    environment="$2"
     load_env "$environment"
 
-    # Deploy to Cloud Run using loaded variables
-    echo "Deploying service $SERVICE_NAME-$ENVIRONMENT to region $REGION..."
-    gcloud run deploy $SERVICE_NAME-$ENVIRONMENT \
+    service_name="${PREFIX}${SERVICE_NAME}-${ENVIRONMENT}"
+    gcloud run deploy $service_name \
         --image $DOCKER_IMAGE \
         --port $PORT \
         --region $REGION \
         --allow-unauthenticated
+
+    # Deploy should return the URL at which the service is available.
+    echo "$(gcloud run services describe $service_name --format='value(status.url)' --region=$REGION)"
+    ;;
+
+"delete")
+    if [ -z "$2" ]; then
+        echo "Error: Environment not specified"
+        help_deploy
+        exit 1
+    fi
+
+    PREFIX=""
+    if [ -n "$3" ]; then
+        PREFIX="$3-"
+    fi
+
+    environment="$2"
+    load_env "$environment"
+
+    service_name="${PREFIX}${SERVICE_NAME}-${ENVIRONMENT}"
+    echo "Deleting service $service_name in region $REGION..."
+    gcloud run services delete $service_name --region=$REGION --quiet
     ;;
 
 "setup-iam")

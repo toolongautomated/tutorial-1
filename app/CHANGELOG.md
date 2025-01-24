@@ -1,9 +1,10 @@
 # Sample application for the first tl; a tutorial.
 
 
-## 1.0.1
+## 1.1.0
 
-Test automated tagging.
+- add `/planet` endpoint to showcase integration tests.
+- add dummy helpers to showcase unit tests.
 
 
 ## 1.0.0
