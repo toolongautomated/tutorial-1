@@ -1,0 +1,96 @@
+name: Integration Tests
+
+on:
+  pull_request:
+    paths:
+      - 'deploy/environments/**/.env'
+    types: [opened, synchronize]
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-22.04
+    outputs:
+      environments: ${{ steps.changes.outputs.environments }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v45
+        with:
+          files: deploy/environments/**/.env
+          dir_names: true
+          dir_names_max_depth: "3"
+
+      - name: Extract environment names
+        id: changes
+        run: |
+          environments="${{ steps.changed-files.outputs.all_changed_files }}"
+          environments=$(echo "$environments" | sed 's|deploy/environments/||g' | jq -cR 'split(" ")')
+          echo "environments={\"environment\":$environments}" >> $GITHUB_OUTPUT
+
+  test-integration:
+    needs: detect-changes
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix: ${{ fromJson(needs.detect-changes.outputs.environments) }}
+
+    permissions:
+      id-token: 'write'
+      checks: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r app/requirements-test.txt
+
+      - name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v2'
+        with:
+          project_id: 'toolongautomated'
+          workload_identity_provider: 'projects/572404090605/locations/global/workloadIdentityPools/github/providers/tutorial-1'
+
+      - name: 'Set up Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@v2'
+
+      - name: Load environment config
+        id: env-config
+        run: |
+          source deploy/environments/${{ matrix.environment }}/.env
+          echo "region=$REGION" >> $GITHUB_OUTPUT
+
+      - name: Deploy test environment
+        id: deploy
+        run: |
+          endpoint_url=$(./manage deploy ${{ matrix.environment }} test)
+          echo "endpoint_url=$endpoint_url" >> $GITHUB_OUTPUT
+
+      - name: Run integration tests
+        id: run-tests
+        env:
+          ENDPOINT_URL: ${{ steps.deploy.outputs.endpoint_url }}
+        run: |
+          pytest app/test/integration/test_endpoints.py -v --junitxml=test-results.xml
+
+      - name: Publish Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: test-results.xml
+          comment_mode: always
+          comment_title: "Integration Test Results - ${{ matrix.environment }}"
+
+      - name: Delete test environment
+        if: always()
+        run: |
+          ./manage delete ${{ matrix.environment }} test

@@ -1,0 +1,13 @@
+title: cloud_run_deployer
+description: Cloud Run Deployer Role
+stage: GA
+includedPermissions:
+  - run.services.create
+  - run.services.delete
+  - run.services.update
+  - run.services.get
+  - run.services.setIamPolicy
+  - run.services.getIamPolicy
+  - run.operations.get
+  - artifactregistry.repositories.downloadArtifacts
+  - iam.serviceAccounts.actAs

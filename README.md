@@ -1,6 +1,6 @@
 # Tutorial #1: one branch to rule them all
 
-![tl;a banenr](docs/banner.jpeg)
+![tl;a banner](docs/banner.jpeg)
 
 📓 Code in this repository is a supplementary material to the following series
 on the `too long; automated` blog: [one branch to rule them

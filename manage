@@ -2,10 +2,16 @@
 
 function help() {
     echo "Usage:"
-    echo "  deploy: ./manage.bash deploy [ENVIRONMENT]"
+    echo "  deploy: ./manage deploy [ENVIRONMENT] [PREFIX]"
+    echo "  delete: ./manage delete [ENVIRONMENT] [PREFIX]"
+    echo "  setup-iam: ./manage setup-iam [REPO_OWNER] [REPO_NAME] [PROJECT_ID]"
     echo ""
     echo "Example usage:"
-    echo "  Deploy a service: ./manage.bash deploy staging"
+    echo "  Deploy a service: ./manage deploy staging"
+    echo "  Deploy a service with a prefix: ./manage deploy staging test"
+    echo "  Delete a service: ./manage delete staging"
+    echo "  Delete a service with a prefix: ./manage delete staging test"
+    echo "  Setup IAM: ./manage setup-iam toolongautomated tutorial-1 toolongautomated"
 }
 
 function load_env() {
@@ -24,32 +30,109 @@ function load_env() {
 # Main script execution starts here
 case "$1" in
 "deploy")
-    # Check if environment parameter is provided
     if [ -z "$2" ]; then
         echo "Error: Environment not specified"
         help_deploy
         exit 1
     fi
 
-    environment="$2"
+    # Prefix for the service name; useful for integration testing
+    PREFIX=""
+    if [ -n "$3" ]; then
+        PREFIX="$3-"
+    fi
 
-    # Load environment-specific variables
+    environment="$2"
     load_env "$environment"
 
-    # Deploy to Cloud Run using loaded variables
-    echo "Deploying service $SERVICE_NAME-$ENVIRONMENT to region $REGION..."
-    gcloud run deploy $SERVICE_NAME-$ENVIRONMENT \
+    service_name="${PREFIX}${SERVICE_NAME}-${ENVIRONMENT}"
+    gcloud run deploy $service_name \
         --image $DOCKER_IMAGE \
         --port $PORT \
         --region $REGION \
         --allow-unauthenticated
 
+    # Deploy should return the URL at which the service is available.
+    echo "$(gcloud run services describe $service_name --format='value(status.url)' --region=$REGION)"
     ;;
+
+"delete")
+    if [ -z "$2" ]; then
+        echo "Error: Environment not specified"
+        help_deploy
+        exit 1
+    fi
+
+    PREFIX=""
+    if [ -n "$3" ]; then
+        PREFIX="$3-"
+    fi
+
+    environment="$2"
+    load_env "$environment"
+
+    service_name="${PREFIX}${SERVICE_NAME}-${ENVIRONMENT}"
+    echo "Deleting service $service_name in region $REGION..."
+    gcloud run services delete $service_name --region=$REGION --quiet
+    ;;
+
+"setup-iam")
+    if [ -z "$2" ] || [ -z "$3" ] || [ -z "$4" ]; then
+        echo "Error: Missing required arguments"
+        help
+        exit 1
+    fi
+
+    repo_owner="$2"
+    repo_name="$3"
+    project_id="$4"
+
+    # Create a new workload identity pool for GitHub Actions
+    workload_identity_pool_id=$(gcloud iam workload-identity-pools create "github" \
+        --project="$project_id" \
+        --location="global" \
+        --display-name="GitHub Actions Pool" \
+        --format="value(name)")
+
+    # Create a new provider for the GitHub Actions pool.
+    gcloud iam workload-identity-pools providers create-oidc "$repo_name" \
+        --project="$project_id" \
+        --location="global" \
+        --workload-identity-pool="github" \
+        --display-name="GitHub Actions identity provider" \
+        --attribute-mapping="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository,attribute.repository_owner=assertion.repository_owner" \
+        --attribute-condition="assertion.repository_owner == '$repo_owner'" \
+        --issuer-uri="https://token.actions.githubusercontent.com"
+
+    # Get the full identity provider name.
+    full_provider_name=$(gcloud iam workload-identity-pools providers describe "$repo_name" \
+        --project="$project_id" \
+        --location="global" \
+        --workload-identity-pool="github" \
+        --format="value(name)")
+
+    # Create a custom role for the GitHub Actions workflow to use to deploy to Cloud Run.
+    gcloud iam roles create cloud_run_deployer --project="$project_id" \
+        --file=infrastructure/cloud_run_deployer_role.yaml
+
+    principal="principalSet://iam.googleapis.com/${workload_identity_pool_id}/attribute.repository/${repo_owner}/${repo_name}"
+
+    # Create and configure IAM policy binding for the custom role.
+    gcloud projects add-iam-policy-binding "$project_id" \
+        --member="$principal" \
+        --role="projects/$project_id/roles/cloud_run_deployer"
+
+    echo "Full provider name: $full_provider_name. Copy this value to your GitHub Actions workflow (google-github-actions/auth@v2 step)"
+    echo ""
+    echo "IAM resources created successfully!"
+    ;;
+
 "help")
     # Display general help message
     help
     exit 0
     ;;
+
 *)
     # Display help for unknown commands
     echo "Error: Unknown command $1"
